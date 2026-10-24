@@ -10,31 +10,31 @@ from app.agents.space_agent import create_space_agent
 
 
 RESEARCH_TERMS = re.compile(
-    r"\\b("
+    r"\b("
     r"research papers?|academic papers?|scholarly articles?|"
     r"arxiv|openalex|citation count|literature review|"
     r"scientific publications?"
-    r")\\b",
+    r")\b",
     re.IGNORECASE,
 )
 
 BOOK_TERMS = re.compile(
-    r"\\b("
+    r"\b("
     r"books?|book recommendations?|novels?|textbooks?|"
     r"isbn|open library|editions?|"
     r"find me a book|recommend me a book|"
     r"author of|books to read"
-    r")\\b",
+    r")\b",
     re.IGNORECASE,
 )
 
 SPACE_TERMS = re.compile(
-    r"\\b("
+    r"\b("
     r"nasa|space images?|space photos?|astronomical images?|"
     r"galax(?:y|ies)|nebulae?|planets?|mars rover|moon photos?|"
     r"james webb|hubble telescope|apollo mission|astronauts?|"
     r"space exploration|spacecraft|solar system"
-    r")\\b",
+    r")\b",
     re.IGNORECASE,
 )
 
