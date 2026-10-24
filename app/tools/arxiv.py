@@ -1,3 +1,4 @@
+import re
 import xml.etree.ElementTree as ET
 
 import requests
@@ -5,11 +6,32 @@ from langchain_core.tools import tool
 
 
 ARXIV_API_URL = "https://export.arxiv.org/api/query"
+MAX_RESULTS = 10
 
 NAMESPACES = {
     "atom": "http://www.w3.org/2005/Atom",
     "arxiv": "http://arxiv.org/schemas/atom",
 }
+
+STOP_WORDS = {
+    "a", "an", "the", "in", "on", "at", "for", "of", "and",
+    "or", "to", "with", "about", "using", "by", "from", "into",
+}
+
+
+def build_arxiv_query(query):
+    """Build an arXiv all-fields query from a natural-language topic."""
+    terms = re.findall(r"[A-Za-z0-9]+", query.lower())
+    terms = [term for term in terms if term not in STOP_WORDS]
+
+    if not terms:
+        terms = re.findall(r"[A-Za-z0-9]+", query.lower())
+
+    if not terms:
+        return ""
+
+    # AND gives multiword searches predictable, explicit semantics.
+    return " AND ".join(f"all:{term}" for term in terms)
 
 
 @tool
@@ -17,9 +39,7 @@ def search_arxiv_papers(query: str, limit: int = 5) -> dict:
     """Search arXiv for scientific preprints and research papers.
 
     Returns titles, authors, publication dates, abstracts, categories,
-    arXiv URLs, and DOI values when available. Use for scientific
-    literature, especially computer science, AI, physics, astronomy,
-    mathematics, and related technical fields.
+    arXiv URLs, arXiv identifiers, and DOI values when available.
     """
     query = query.strip()
 
@@ -32,17 +52,25 @@ def search_arxiv_papers(query: str, limit: int = 5) -> dict:
         }
 
     try:
-        limit = int(limit)
+        limit = max(1, min(int(limit), MAX_RESULTS))
     except (TypeError, ValueError):
         limit = 5
 
-    limit = max(1, min(limit, 10))
+    api_query = build_arxiv_query(query)
+
+    if not api_query:
+        return {
+            "ok": False,
+            "source": "arXiv",
+            "error": "The query did not contain searchable terms.",
+            "papers": [],
+        }
 
     try:
         response = requests.get(
             ARXIV_API_URL,
             params={
-                "search_query": f"all:{query}",
+                "search_query": api_query,
                 "start": 0,
                 "max_results": limit,
                 "sortBy": "relevance",
@@ -69,10 +97,9 @@ def search_arxiv_papers(query: str, limit: int = 5) -> dict:
             "papers": [],
         }
 
-    entries = root.findall("atom:entry", NAMESPACES)
     papers = []
 
-    for entry in entries:
+    for entry in root.findall("atom:entry", NAMESPACES):
         title = entry.findtext(
             "atom:title", default="", namespaces=NAMESPACES
         ).strip()
@@ -89,10 +116,21 @@ def search_arxiv_papers(query: str, limit: int = 5) -> dict:
 
         published = entry.findtext(
             "atom:published", default="", namespaces=NAMESPACES
-        )
+        ).strip()
+
         arxiv_url = entry.findtext(
             "atom:id", default="", namespaces=NAMESPACES
+        ).strip()
+
+        arxiv_id = None
+        match = re.search(
+            r"arxiv\.org/(?:abs|pdf)/([^?#]+)",
+            arxiv_url,
+            flags=re.IGNORECASE,
         )
+        if match:
+            arxiv_id = re.sub(r"v\d+$", "", match.group(1))
+            arxiv_id = re.sub(r"\.pdf$", "", arxiv_id)
 
         doi = entry.findtext(
             "arxiv:doi", default="", namespaces=NAMESPACES
@@ -115,6 +153,7 @@ def search_arxiv_papers(query: str, limit: int = 5) -> dict:
             "published": published or None,
             "doi": doi,
             "url": arxiv_url or None,
+            "arxiv_id": arxiv_id,
             "abstract": " ".join(abstract.split())[:1200],
             "categories": categories,
             "source": "arXiv",
@@ -124,6 +163,7 @@ def search_arxiv_papers(query: str, limit: int = 5) -> dict:
         "ok": True,
         "source": "arXiv",
         "query": query,
+        "api_query": api_query,
         "count": len(papers),
         "papers": papers,
     }
