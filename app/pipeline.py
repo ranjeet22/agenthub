@@ -30,11 +30,11 @@ BOOK_TERMS = re.compile(
 )
 
 WIKIDATA_TERMS = re.compile(
-    r"\\b("
+    r"\b("
     r"wikidata|who is|what is|tell me about|facts about|"
     r"entity lookup|look up entity|capital of|population of|"
     r"born in|founded in|founder of|official website|where is"
-    r")\\b",
+    r")\b",
     re.IGNORECASE,
 )
 
