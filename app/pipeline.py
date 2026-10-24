@@ -36,7 +36,7 @@ AIR_QUALITY_TERMS = re.compile(
     r"aqi|pm\s?2\.?5|pm\s?10|particulate matter|"
     r"openaq|nitrogen dioxide|sulfur dioxide|ozone levels?|"
     r"carbon monoxide levels?"
-    r")\\b",
+    r")\b",
     re.IGNORECASE,
 )
 
