@@ -5,6 +5,7 @@ import re
 from langchain_core.messages import AIMessage, ToolMessage
 
 from app.agents.air_quality_agent import create_air_quality_agent
+from app.agents.met_museum_agent import create_met_museum_agent
 from app.agents.books_agent import create_books_agent
 from app.agents.research_agent import create_research_agent
 from app.agents.space_agent import create_space_agent
@@ -40,6 +41,18 @@ AIR_QUALITY_TERMS = re.compile(
     re.IGNORECASE,
 )
 
+MET_MUSEUM_TERMS = re.compile(
+    r"\\b("
+    r"met museum|metropolitan museum|met collection|museum collection|"
+    r"artworks?|paintings?|sculptures?|art collection|"
+    r"art history|artifacts?|artefacts?|portraits?|"
+    r"claude monet|vincent van gogh|rembrandt|frida kahlo|"
+    r"egyptian art|japanese art|renaissance art"
+    r")\\b",
+    re.IGNORECASE,
+)
+
+
 WIKIDATA_TERMS = re.compile(
     r"\b("
     r"wikidata|who is|what is|tell me about|facts about|"
@@ -74,6 +87,8 @@ def route_query(query: str) -> str:
         return "air_quality"
     elif SPACE_TERMS.search(normalized):
         return "space"
+    elif MET_MUSEUM_TERMS.search(normalized):
+        return "met_museum"
     elif WIKIDATA_TERMS.search(normalized):
         return "wikidata"
     else:
@@ -197,6 +212,8 @@ def run_agent_query(query: str) -> dict:
         agent = create_wikidata_agent()
     elif route == "air_quality":
         agent = create_air_quality_agent()
+    elif route == "met_museum":
+        agent = create_met_museum_agent()
     else:
         return {
             "ok": False,
