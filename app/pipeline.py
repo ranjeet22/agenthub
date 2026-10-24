@@ -7,6 +7,7 @@ from langchain_core.messages import AIMessage, ToolMessage
 from app.agents.books_agent import create_books_agent
 from app.agents.research_agent import create_research_agent
 from app.agents.space_agent import create_space_agent
+from app.agents.wikidata_agent import create_wikidata_agent
 
 
 RESEARCH_TERMS = re.compile(
@@ -27,6 +28,16 @@ BOOK_TERMS = re.compile(
     r")\b",
     re.IGNORECASE,
 )
+
+WIKIDATA_TERMS = re.compile(
+    r"\\b("
+    r"wikidata|who is|what is|tell me about|facts about|"
+    r"entity lookup|look up entity|capital of|population of|"
+    r"born in|founded in|founder of|official website|where is"
+    r")\\b",
+    re.IGNORECASE,
+)
+
 
 SPACE_TERMS = re.compile(
     r"\b("
@@ -50,6 +61,8 @@ def route_query(query: str) -> str:
         return "books"
     elif SPACE_TERMS.search(normalized):
         return "space"
+    elif WIKIDATA_TERMS.search(normalized):
+        return "wikidata"
     else:
         # Preserve the existing research-first default.
         return "research"
@@ -167,6 +180,8 @@ def run_agent_query(query: str) -> dict:
         agent = create_research_agent()
     elif route == "space":
         agent = create_space_agent()
+    elif route == "wikidata":
+        agent = create_wikidata_agent()
     else:
         return {
             "ok": False,
