@@ -2,8 +2,8 @@ import re
 import unicodedata
 from urllib.parse import unquote
 
-_DOI = re.compile(r"^(?:https?://(?:dx\\.)?doi\\.org/|doi:\\s*)", re.I)
-_ARXIV = re.compile(r"(?:arxiv\\.org/(?:abs|pdf)/)?(\\d{4}\\.\\d{4,5}|[a-z-]+/\\d{7})(?:v\\d+)?(?:\\.pdf)?", re.I)
+_DOI = re.compile(r"^(?:https?://(?:dx\.)?doi\.org/|doi:\s*)", re.I)
+_ARXIV = re.compile(r"(?:arxiv\.org/(?:abs|pdf)/)?(\d{4}\.\d{4,5}|[a-z-]+/\d{7})(?:v\d+)?(?:\.pdf)?", re.I)
 
 def normalize_doi(value):
     return _DOI.sub("", unquote(str(value)).strip()).rstrip(" .;,").lower() if value else ""
@@ -16,12 +16,12 @@ def normalize_arxiv_id(paper):
 def normalize_title(title):
     if not title: return ""
     value = unicodedata.normalize("NFKC", str(title)).casefold()
-    return " ".join(re.sub(r"[^\\w\\s]", " ", value).split())
+    return " ".join(re.sub(r"[^\w\s]", " ", value).split())
 
 def _author(paper):
     authors = paper.get("authors") or []
     if not authors or not authors[0]: return None
-    tokens = re.findall(r"[\\w]+", unicodedata.normalize("NFKC", str(authors[0])).casefold())
+    tokens = re.findall(r"[\w]+", unicodedata.normalize("NFKC", str(authors[0])).casefold())
     return (tokens[-1], "".join(t[0] for t in tokens[:-1])) if tokens else None
 
 def _authors_match(a, b):
