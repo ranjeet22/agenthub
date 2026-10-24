@@ -6,24 +6,35 @@ from langchain_core.messages import AIMessage, ToolMessage
 
 from app.agents.books_agent import create_books_agent
 from app.agents.research_agent import create_research_agent
+from app.agents.space_agent import create_space_agent
 
 
 RESEARCH_TERMS = re.compile(
-    r"\b("
+    r"\\b("
     r"research papers?|academic papers?|scholarly articles?|"
     r"arxiv|openalex|citation count|literature review|"
     r"scientific publications?"
-    r")\b",
+    r")\\b",
     re.IGNORECASE,
 )
 
 BOOK_TERMS = re.compile(
-    r"\b("
+    r"\\b("
     r"books?|book recommendations?|novels?|textbooks?|"
     r"isbn|open library|editions?|"
     r"find me a book|recommend me a book|"
     r"author of|books to read"
-    r")\b",
+    r")\\b",
+    re.IGNORECASE,
+)
+
+SPACE_TERMS = re.compile(
+    r"\\b("
+    r"nasa|space images?|space photos?|astronomical images?|"
+    r"galax(?:y|ies)|nebulae?|planets?|mars rover|moon photos?|"
+    r"james webb|hubble telescope|apollo mission|astronauts?|"
+    r"space exploration|spacecraft|solar system"
+    r")\\b",
     re.IGNORECASE,
 )
 
@@ -32,10 +43,13 @@ def route_query(query: str) -> str:
     """Choose an agent without making an additional LLM call."""
     normalized = (query or "").strip()
 
+    # Explicit research and book intents take priority over broad space terms.
     if RESEARCH_TERMS.search(normalized):
         return "research"
     elif BOOK_TERMS.search(normalized):
         return "books"
+    elif SPACE_TERMS.search(normalized):
+        return "space"
     else:
         # Preserve the existing research-first default.
         return "research"
@@ -79,7 +93,7 @@ def _message_text(content):
             and isinstance(block.get("text"), str)
         ]
         if parts:
-            return "\n".join(parts)
+            return "\\n".join(parts)
 
     if isinstance(content, dict):
         return json.dumps(content, ensure_ascii=False)
@@ -151,6 +165,8 @@ def run_agent_query(query: str) -> dict:
         agent = create_books_agent()
     elif route == "research":
         agent = create_research_agent()
+    elif route == "space":
+        agent = create_space_agent()
     else:
         return {
             "ok": False,
