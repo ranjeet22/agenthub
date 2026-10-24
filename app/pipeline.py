@@ -42,13 +42,13 @@ AIR_QUALITY_TERMS = re.compile(
 )
 
 MET_MUSEUM_TERMS = re.compile(
-    r"\\b("
+    r"\b("
     r"met museum|metropolitan museum|met collection|museum collection|"
     r"artworks?|paintings?|sculptures?|art collection|"
     r"art history|artifacts?|artefacts?|portraits?|"
     r"claude monet|vincent van gogh|rembrandt|frida kahlo|"
     r"egyptian art|japanese art|renaissance art"
-    r")\\b",
+    r")\b",
     re.IGNORECASE,
 )
 
