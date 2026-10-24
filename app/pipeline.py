@@ -4,6 +4,7 @@ import re
 
 from langchain_core.messages import AIMessage, ToolMessage
 
+from app.agents.air_quality_agent import create_air_quality_agent
 from app.agents.books_agent import create_books_agent
 from app.agents.research_agent import create_research_agent
 from app.agents.space_agent import create_space_agent
@@ -25,6 +26,16 @@ BOOK_TERMS = re.compile(
     r"isbn|open library|editions?|"
     r"find me a book|recommend me a book|"
     r"author of|books to read"
+    r")\b",
+    re.IGNORECASE,
+)
+
+AIR_QUALITY_TERMS = re.compile(
+    r"\b("
+    r"air quality|air pollution|pollution levels?|pollutants?|"
+    r"aqi|pm\s?2\.?5|pm\s?10|particulate matter|"
+    r"openaq|nitrogen dioxide|sulfur dioxide|ozone levels?|"
+    r"carbon monoxide levels?"
     r")\b",
     re.IGNORECASE,
 )
@@ -59,6 +70,8 @@ def route_query(query: str) -> str:
         return "research"
     elif BOOK_TERMS.search(normalized):
         return "books"
+    elif AIR_QUALITY_TERMS.search(normalized):
+        return "air_quality"
     elif SPACE_TERMS.search(normalized):
         return "space"
     elif WIKIDATA_TERMS.search(normalized):
@@ -182,6 +195,8 @@ def run_agent_query(query: str) -> dict:
         agent = create_space_agent()
     elif route == "wikidata":
         agent = create_wikidata_agent()
+    elif route == "air_quality":
+        agent = create_air_quality_agent()
     else:
         return {
             "ok": False,
