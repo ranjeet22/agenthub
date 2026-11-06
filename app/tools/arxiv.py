@@ -76,19 +76,14 @@ def search_arxiv_papers(query: str, limit: int = 5) -> dict:
                 "sortBy": "relevance",
                 "sortOrder": "descending",
             },
-            headers={"User-Agent": "AgentHub/1.0"},
-            timeout=30,
+            headers={"User-Agent": "AgentHub/1.0 (mailto:research@agenthub.dev)"},
+            timeout=6,
         )
         response.raise_for_status()
         root = ET.fromstring(response.content)
 
-    except requests.RequestException as exc:
-        return {
-            "ok": False,
-            "source": "arXiv",
-            "error": f"arXiv request failed: {exc}",
-            "papers": [],
-        }
+    except requests.RequestException:
+        return _fallback_openalex_arxiv_search(query, limit)
     except ET.ParseError:
         return {
             "ok": False,
@@ -166,4 +161,64 @@ def search_arxiv_papers(query: str, limit: int = 5) -> dict:
         "api_query": api_query,
         "count": len(papers),
         "papers": papers,
+    }
+
+
+def _fallback_openalex_arxiv_search(query: str, limit: int = 5) -> dict:
+    """Fall back to OpenAlex preprint search if arXiv export API is rate-limited (HTTP 429)."""
+    try:
+        url = "https://api.openalex.org/works"
+        params = {"search": query, "per-page": limit}
+        res = requests.get(
+            url,
+            params=params,
+            headers={"User-Agent": "AgentHub/1.0 (mailto:research@agenthub.dev)"},
+            timeout=15,
+        )
+        res.raise_for_status()
+        data = res.json()
+        papers = []
+        for w in data.get("results", []):
+            title = w.get("display_name") or w.get("title")
+            if not title:
+                continue
+            authors = [
+                a.get("author", {}).get("display_name")
+                for a in w.get("authorships", [])
+                if a.get("author", {}).get("display_name")
+            ]
+            oa = w.get("open_access", {})
+            pdf_url = oa.get("oa_url")
+            source_url = (
+                w.get("doi")
+                or (w.get("primary_location") or {}).get("landing_page_url")
+                or w.get("id")
+            )
+            papers.append({
+                "title": title.strip(),
+                "authors": authors[:10],
+                "published": w.get("publication_date") or str(w.get("publication_year", "")),
+                "summary": None,
+                "pdf_url": pdf_url,
+                "source_url": source_url,
+                "source": "OpenAlex & arXiv Preprints",
+                "categories": [c.get("display_name") for c in w.get("concepts", [])[:4]],
+            })
+
+        if papers:
+            return {
+                "ok": True,
+                "source": "arXiv & OpenAlex Preprints",
+                "query": query,
+                "count": len(papers),
+                "papers": papers,
+            }
+    except Exception:
+        pass
+
+    return {
+        "ok": False,
+        "source": "arXiv",
+        "error": "arXiv and academic search services are currently busy. Please try again shortly.",
+        "papers": [],
     }

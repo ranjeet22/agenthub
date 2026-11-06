@@ -1,11 +1,10 @@
 import os
-
 import requests
 from langchain_core.tools import tool
 
-
 OPENAQ_BASE_URL = "https://api.openaq.org/v3"
 GEOCODING_URL = "https://nominatim.openstreetmap.org/search"
+OPEN_METEO_AQ_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
 MAX_LOCATIONS = 10
 DEFAULT_RADIUS_METERS = 10000
 
@@ -31,6 +30,99 @@ def _geocode_city(city):
         }
     except (KeyError, TypeError, ValueError):
         return None
+
+
+def _fetch_open_meteo_air_quality(city: str, coordinates: dict) -> dict:
+    """Fetch real-time air quality from the public Open-Meteo Air Quality service without requiring an API key."""
+    try:
+        params = {
+            "latitude": coordinates["latitude"],
+            "longitude": coordinates["longitude"],
+            "current": "european_aqi,us_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone",
+        }
+        res = requests.get(OPEN_METEO_AQ_URL, params=params, timeout=15)
+        res.raise_for_status()
+        data = res.json()
+        current = data.get("current", {})
+
+        us_aqi = current.get("us_aqi")
+        eu_aqi = current.get("european_aqi")
+        aqi_val = us_aqi if us_aqi is not None else eu_aqi
+
+        if aqi_val is not None:
+            if aqi_val <= 50:
+                category = "Good"
+            elif aqi_val <= 100:
+                category = "Moderate"
+            elif aqi_val <= 150:
+                category = "Unhealthy for Sensitive Groups"
+            elif aqi_val <= 200:
+                category = "Unhealthy"
+            elif aqi_val <= 300:
+                category = "Very Unhealthy"
+            else:
+                category = "Hazardous"
+        else:
+            category = "Report"
+
+        pollutants = {}
+        if current.get("pm2_5") is not None:
+            pollutants["PM2.5"] = f"{current['pm2_5']} µg/m³"
+        if current.get("pm10") is not None:
+            pollutants["PM10"] = f"{current['pm10']} µg/m³"
+        if current.get("nitrogen_dioxide") is not None:
+            pollutants["NO2"] = f"{current['nitrogen_dioxide']} µg/m³"
+        if current.get("sulphur_dioxide") is not None:
+            pollutants["SO2"] = f"{current['sulphur_dioxide']} µg/m³"
+        if current.get("ozone") is not None:
+            pollutants["O3"] = f"{current['ozone']} µg/m³"
+        if current.get("carbon_monoxide") is not None:
+            pollutants["CO"] = f"{current['carbon_monoxide']} µg/m³"
+
+        measurements = []
+        for param, val in pollutants.items():
+            measurements.append({
+                "parameter": param,
+                "value": val,
+                "units": "µg/m³",
+                "station": coordinates.get("display_name", city),
+                "locality": city,
+                "latitude": coordinates["latitude"],
+                "longitude": coordinates["longitude"],
+                "source": "Open-Meteo & Copernicus Atmosphere Service",
+                "source_url": "https://open-meteo.com/en/docs/air-quality-api",
+            })
+
+        return {
+            "ok": True,
+            "source": "Open-Meteo / Copernicus Atmosphere Service",
+            "query": city,
+            "city": city,
+            "resolved_location": coordinates,
+            "aqi": aqi_val,
+            "category": category,
+            "pollutants": pollutants,
+            "count": len(measurements),
+            "measurements": measurements,
+            "locations": [{
+                "name": coordinates.get("display_name", city),
+                "latitude": coordinates["latitude"],
+                "longitude": coordinates["longitude"],
+                "aqi": aqi_val,
+                "category": category,
+            }],
+            "note": "Real-time atmospheric sensor data provided by Open-Meteo & Copernicus.",
+        }
+    except Exception as exc:
+        return {
+            "ok": False,
+            "source": "Open-Meteo",
+            "query": city,
+            "error": f"Failed to retrieve air quality data: {exc}",
+            "count": 0,
+            "measurements": [],
+            "locations": [],
+        }
 
 
 def _normalize_location(location):
@@ -101,22 +193,35 @@ def _normalize_measurement(item, location):
 
 @tool
 def search_openaq_air_quality(city: str, limit: int = 5, radius_meters: int = DEFAULT_RADIUS_METERS) -> dict:
-    """Look up recent air-quality measurements from OpenAQ monitoring stations near a city.
+    """Look up recent air-quality measurements from environmental monitoring stations for a city.
 
-    Requires OPENAQ_API_KEY in the environment. Resolves the city to coordinates,
-    searches nearby OpenAQ monitoring locations, then retrieves each location's
-    latest sensor measurements. Values are provider-reported; this tool does not calculate an AQI.
+    Resolves the city to coordinates, and retrieves live sensor measurements (AQI, PM2.5,
+    PM10, NO2, SO2, CO, Ozone). Does not require an API key by defaulting to public Open-Meteo
+    atmospheric sensors.
     """
     city = (city or "").strip()
     if not city:
-        return {"ok": False, "source": "OpenAQ", "query": city,
+        return {"ok": False, "source": "Air Quality Service", "query": city,
                 "error": "Please provide a city or location.", "count": 0,
                 "locations": [], "measurements": []}
+
+    try:
+        coordinates = _geocode_city(city)
+        if coordinates is None:
+            return {"ok": False, "source": "Air Quality Service", "query": city,
+                    "error": f"Could not resolve '{city}'. Try a more specific city name.",
+                    "count": 0, "locations": [], "measurements": []}
+    except Exception as exc:
+        return {"ok": False, "source": "Air Quality Service", "query": city,
+                "error": f"Geocoding service error: {exc}", "count": 0,
+                "locations": [], "measurements": []}
+
     api_key = os.getenv("OPENAQ_API_KEY")
+
+    # If OPENAQ_API_KEY is not configured in .env, automatically use free public Open-Meteo
     if not api_key:
-        return {"ok": False, "source": "OpenAQ", "query": city,
-                "error": "OPENAQ_API_KEY is missing. Add it to .env and restart the application.",
-                "count": 0, "locations": [], "measurements": []}
+        return _fetch_open_meteo_air_quality(city, coordinates)
+
     try:
         limit = max(1, min(int(limit), MAX_LOCATIONS))
     except (TypeError, ValueError):
@@ -128,11 +233,6 @@ def search_openaq_air_quality(city: str, limit: int = 5, radius_meters: int = DE
 
     headers = {"X-API-Key": api_key, "User-Agent": "AgentHub/1.0"}
     try:
-        coordinates = _geocode_city(city)
-        if coordinates is None:
-            return {"ok": False, "source": "OpenAQ", "query": city,
-                    "error": f"Could not resolve '{city}'. Try a more specific city name.",
-                    "count": 0, "locations": [], "measurements": []}
         response = requests.get(
             f"{OPENAQ_BASE_URL}/locations",
             params={"coordinates": f"{coordinates['latitude']:.4f},{coordinates['longitude']:.4f}",
@@ -141,20 +241,16 @@ def search_openaq_air_quality(city: str, limit: int = 5, radius_meters: int = DE
         )
         response.raise_for_status()
         payload = response.json()
-    except requests.RequestException as exc:
-        return {"ok": False, "source": "OpenAQ", "query": city,
-                "error": f"Air-quality location search failed: {exc}",
-                "count": 0, "locations": [], "measurements": []}
+    except requests.RequestException:
+        # Fall back to Open-Meteo if OpenAQ API fails
+        return _fetch_open_meteo_air_quality(city, coordinates)
     except ValueError:
-        return {"ok": False, "source": "OpenAQ", "query": city,
-                "error": "An API returned invalid JSON during location lookup.",
-                "count": 0, "locations": [], "measurements": []}
+        return _fetch_open_meteo_air_quality(city, coordinates)
 
     results = payload.get("results") if isinstance(payload, dict) else None
-    if not isinstance(results, list):
-        return {"ok": False, "source": "OpenAQ", "query": city,
-                "error": "Unexpected response format from OpenAQ locations endpoint.",
-                "count": 0, "locations": [], "measurements": []}
+    if not isinstance(results, list) or len(results) == 0:
+        return _fetch_open_meteo_air_quality(city, coordinates)
+
     locations = []
     for item in results:
         normalized = _normalize_location(item)
@@ -174,21 +270,21 @@ def search_openaq_air_quality(city: str, limit: int = 5, radius_meters: int = DE
             latest_payload = latest_response.json()
             latest_items = latest_payload.get("results") if isinstance(latest_payload, dict) else None
             if not isinstance(latest_items, list):
-                errors.append(f"{location['name']}: unexpected latest-measurements response")
                 continue
             for item in latest_items:
                 measurement = _normalize_measurement(item, location)
                 if measurement:
                     measurements.append(measurement)
-        except requests.RequestException as exc:
-            errors.append(f"{location['name']}: {type(exc).__name__}: {exc}")
-        except ValueError:
-            errors.append(f"{location['name']}: invalid JSON response")
+        except Exception:
+            continue
+
+    if not measurements:
+        return _fetch_open_meteo_air_quality(city, coordinates)
 
     return {
         "ok": bool(locations), "source": "OpenAQ", "query": city,
         "resolved_location": coordinates, "radius_meters": radius_meters,
         "count": len(measurements), "location_count": len(locations),
         "locations": locations, "measurements": measurements, "errors": errors,
-        "note": "Provider-reported pollutant measurements, not a calculated AQI. Coverage and reporting times vary by station.",
+        "note": "Provider-reported pollutant measurements. Coverage and reporting times vary by station.",
     }

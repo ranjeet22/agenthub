@@ -55,7 +55,7 @@ def _normalize_book(item):
 
     if isinstance(cover_id, int) and cover_id > 0:
         cover_url = (
-            f"{OPEN_LIBRARY_COVER_URL}/{cover_id}-L.jpg?default=false"
+            f"{OPEN_LIBRARY_COVER_URL}/{cover_id}-M.jpg"
         )
 
     year = item.get("first_publish_year")
@@ -76,6 +76,7 @@ def _normalize_book(item):
         "subjects": _clean_list(item.get("subject"), limit=8),
         "languages": _clean_list(item.get("language"), limit=5),
         "cover_id": cover_id if isinstance(cover_id, int) else None,
+        "cover_url": cover_url,
         "cover_image_url": cover_url,
         "source_url": source_url,
         "source": "Open Library",

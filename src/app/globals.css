@@ -1,0 +1,139 @@
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #FBFAF8;
+  --bg-subtle: #F6F5F3;
+  --surface: #FFFFFF;
+  --border: rgba(31, 30, 28, 0.10);
+  --border-strong: rgba(31, 30, 28, 0.18);
+  --text: #1F1E1C;
+  --text-secondary: #615D59;
+  --text-tertiary: #9B9690;
+
+  --accent: #2F6BFF;
+  --accent-hover: #1F55E0;
+  --accent-tint: #EAF0FF;
+
+  --agent-orby: #2F6BFF;
+  --agent-orby-tint: #EAF0FF;
+  --agent-biblio: #FF7A3D;
+  --agent-biblio-tint: #FFF0E8;
+  --agent-cosmo: #6D4AFF;
+  --agent-cosmo-tint: #F0ECFF;
+  --agent-atlas: #1FB5F0;
+  --agent-atlas-tint: #E6F7FE;
+  --agent-breeze: #3FCB6B;
+  --agent-breeze-tint: #E8F9EE;
+  --agent-palette: #C23DE0;
+  --agent-palette-tint: #F9EAFD;
+
+  --success: #2E9E5B;
+  --success-tint: #EAF7EE;
+  --warning: #C98A1B;
+  --warning-tint: #FEF7EA;
+  --error: #D14343;
+  --error-tint: #FDEEEE;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 24px 64px rgba(0, 0, 0, 0.08);
+
+  --font-inter: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-instrument: 'Instrument Serif', Georgia, serif;
+  --font-jetbrains: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+[data-theme="dark"] {
+  --bg: #191918;
+  --bg-subtle: #202020;
+  --surface: #252525;
+  --border: rgba(255, 255, 255, 0.10);
+  --border-strong: rgba(255, 255, 255, 0.18);
+  --text: #F2F1EE;
+  --text-secondary: #A8A39C;
+  --text-tertiary: #77736D;
+
+  --accent: #3E7BFF;
+  --accent-hover: #5A8FFF;
+  --accent-tint: rgba(47, 107, 255, 0.20);
+
+  --agent-orby-tint: rgba(47, 107, 255, 0.18);
+  --agent-biblio-tint: rgba(255, 122, 61, 0.18);
+  --agent-cosmo-tint: rgba(109, 74, 255, 0.18);
+  --agent-atlas-tint: rgba(31, 181, 240, 0.18);
+  --agent-breeze-tint: rgba(63, 203, 107, 0.18);
+  --agent-palette-tint: rgba(194, 61, 224, 0.18);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.5);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #191918;
+    --bg-subtle: #202020;
+    --surface: #252525;
+    --border: rgba(255, 255, 255, 0.10);
+    --border-strong: rgba(255, 255, 255, 0.18);
+    --text: #F2F1EE;
+    --text-secondary: #A8A39C;
+    --text-tertiary: #77736D;
+
+    --accent: #3E7BFF;
+    --accent-hover: #5A8FFF;
+    --accent-tint: rgba(47, 107, 255, 0.20);
+
+    --agent-orby-tint: rgba(47, 107, 255, 0.18);
+    --agent-biblio-tint: rgba(255, 122, 61, 0.18);
+    --agent-cosmo-tint: rgba(109, 74, 255, 0.18);
+    --agent-atlas-tint: rgba(31, 181, 240, 0.18);
+    --agent-breeze-tint: rgba(63, 203, 107, 0.18);
+    --agent-palette-tint: rgba(194, 61, 224, 0.18);
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.5);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: var(--font-inter);
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.6;
+}
+
+/* Subtle dotted grid texture for workspace depth */
+.bg-dots {
+  background-image: radial-gradient(var(--border-strong) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* Global focus-visible outline */
+*:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

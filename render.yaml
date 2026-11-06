@@ -1,0 +1,27 @@
+services:
+  # Next.js Web Frontend & API Gateway
+  - type: web
+    name: agenthub-ui
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: BACKEND_URL
+        fromService:
+          type: web
+          name: agenthub-api
+          property: host
+
+  # FastAPI Python Multi-Agent Backend
+  - type: web
+    name: agenthub-api
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn api:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8

@@ -1,5 +1,6 @@
 import ast
 import json
+import os
 import re
 
 from langchain_core.messages import AIMessage, ToolMessage
@@ -52,7 +53,6 @@ MET_MUSEUM_TERMS = re.compile(
     re.IGNORECASE,
 )
 
-
 WIKIDATA_TERMS = re.compile(
     r"\b("
     r"wikidata|who is|what is|tell me about|facts about|"
@@ -61,7 +61,6 @@ WIKIDATA_TERMS = re.compile(
     r")\b",
     re.IGNORECASE,
 )
-
 
 SPACE_TERMS = re.compile(
     r"\b("
@@ -74,11 +73,22 @@ SPACE_TERMS = re.compile(
 )
 
 
+def _clean_api_key(raw: str | None) -> str | None:
+    """Sanitize user-provided API key by stripping quotes and whitespace."""
+    if not raw:
+        return None
+    cleaned = str(raw).strip()
+    if (cleaned.startswith('"') and cleaned.endswith('"')) or (
+        cleaned.startswith("'") and cleaned.endswith("'")
+    ):
+        cleaned = cleaned[1:-1].strip()
+    return cleaned if cleaned else None
+
+
 def route_query(query: str) -> str:
     """Choose an agent without making an additional LLM call."""
     normalized = (query or "").strip()
 
-    # Explicit research and book intents take priority over broad space terms.
     if RESEARCH_TERMS.search(normalized):
         return "research"
     elif BOOK_TERMS.search(normalized):
@@ -92,7 +102,6 @@ def route_query(query: str) -> str:
     elif WIKIDATA_TERMS.search(normalized):
         return "wikidata"
     else:
-        # Preserve the existing research-first default.
         return "research"
 
 
@@ -134,7 +143,7 @@ def _message_text(content):
             and isinstance(block.get("text"), str)
         ]
         if parts:
-            return "\\n".join(parts)
+            return "\n".join(parts)
 
     if isinstance(content, dict):
         return json.dumps(content, ensure_ascii=False)
@@ -142,12 +151,110 @@ def _message_text(content):
     return str(content)
 
 
-def _run_agent(agent, query, route):
-    result = agent.invoke({
-        "messages": [
-            {"role": "user", "content": query}
-        ]
-    })
+def _extract_follow_ups(answer_text: str, agent_key: str) -> tuple[str, list[str]]:
+    """Separate follow-up question lines from the main answer text."""
+    lines = answer_text.split("\n")
+    cleaned_lines = []
+    follow_ups = []
+
+    for line in lines:
+        stripped = line.strip()
+        lower = stripped.lower()
+        if lower.startswith("follow-up:") or lower.startswith("follow up:"):
+            q = stripped.split(":", 1)[1].strip().strip("-*• ")
+            if q and len(q) > 5:
+                follow_ups.append(q)
+        else:
+            cleaned_lines.append(line)
+
+    if not follow_ups:
+        defaults = {
+            "orby": [
+                "Find recent literature reviews on this topic",
+                "Show top-cited authors and citation metrics",
+                "Search arXiv for recent preprints this year",
+            ],
+            "research": [
+                "Find recent literature reviews on this topic",
+                "Show top-cited authors and citation metrics",
+                "Search arXiv for recent preprints this year",
+            ],
+            "biblio": [
+                "Recommend related books in this genre",
+                "Show publication history and editions",
+                "Find other prominent works by this author",
+            ],
+            "books": [
+                "Recommend related books in this genre",
+                "Show publication history and editions",
+                "Find other prominent works by this author",
+            ],
+            "cosmo": [
+                "Show James Webb Space Telescope deep-field imagery",
+                "Fetch Mars rover high-resolution photographs",
+                "Search for recent nebula observations",
+            ],
+            "space": [
+                "Show James Webb Space Telescope deep-field imagery",
+                "Fetch Mars rover high-resolution photographs",
+                "Search for recent nebula observations",
+            ],
+            "atlas": [
+                "Look up associated organizations and founders",
+                "Show geographic coordinates and location details",
+                "Find related historical timeline events",
+            ],
+            "wikidata": [
+                "Look up associated organizations and founders",
+                "Show geographic coordinates and location details",
+                "Find related historical timeline events",
+            ],
+            "breeze": [
+                "Show particulate PM2.5 trends for this station",
+                "Check nearby environmental monitoring sensors",
+                "Compare pollution levels with WHO thresholds",
+            ],
+            "air_quality": [
+                "Show particulate PM2.5 trends for this station",
+                "Check nearby environmental monitoring sensors",
+                "Compare pollution levels with WHO thresholds",
+            ],
+            "palette": [
+                "Show other famous works by this artist",
+                "Explore oil paintings from the same artistic era",
+                "Find related sculptures in The Met collection",
+            ],
+            "met_museum": [
+                "Show other famous works by this artist",
+                "Explore oil paintings from the same artistic era",
+                "Find related sculptures in The Met collection",
+            ],
+        }
+        follow_ups = defaults.get(
+            agent_key,
+            [
+                "Tell me more about this",
+                "Show additional primary sources",
+            ],
+        )
+
+    return "\n".join(cleaned_lines).strip(), follow_ups[:3]
+
+
+def _run_agent(agent, query: str, route: str, history: list[dict] | None = None, agent_key: str = ""):
+    input_messages = []
+    if history:
+        for item in history[-6:]:
+            role = item.get("role") or item.get("sender")
+            content = item.get("content") or item.get("text")
+            if role in ("user", "human"):
+                input_messages.append({"role": "user", "content": content})
+            elif role in ("agent", "assistant"):
+                input_messages.append({"role": "assistant", "content": content})
+
+    input_messages.append({"role": "user", "content": query})
+
+    result = agent.invoke({"messages": input_messages})
 
     messages = result.get("messages", [])
     if not messages:
@@ -157,6 +264,7 @@ def _run_agent(agent, query, route):
             "answer": "The agent returned no messages.",
             "evidence": [],
             "tool_calls": [],
+            "follow_ups": [],
         }
 
     tool_calls = []
@@ -176,19 +284,26 @@ def _run_agent(agent, query, route):
                 payload.setdefault("tool", message.name or "unknown")
                 evidence.append(payload)
 
-    answer = _message_text(messages[-1].content)
+    raw_answer = _message_text(messages[-1].content)
+    clean_answer, follow_ups = _extract_follow_ups(raw_answer, agent_key or route)
 
     return {
         "ok": True,
         "route": route,
-        "answer": answer,
+        "answer": clean_answer,
         "evidence": evidence,
         "tool_calls": tool_calls,
+        "follow_ups": follow_ups,
     }
 
 
-def run_agent_query(query: str) -> dict:
-    """Route a query to its dedicated agent and return a common response."""
+def run_agent_query(
+    query: str,
+    agent_id: str | None = None,
+    api_key: str | None = None,
+    history: list[dict] | None = None,
+) -> dict:
+    """Route a query to its dedicated agent and return an evidence-grounded response."""
     query = (query or "").strip()
 
     if not query:
@@ -198,9 +313,34 @@ def run_agent_query(query: str) -> dict:
             "answer": "Please enter a question.",
             "evidence": [],
             "tool_calls": [],
+            "follow_ups": [],
         }
 
-    route = route_query(query)
+    clean_key = _clean_api_key(api_key)
+    if clean_key:
+        os.environ["GEMINI_API_KEY"] = clean_key
+        os.environ["GOOGLE_API_KEY"] = clean_key
+    elif not os.environ.get("GEMINI_API_KEY") and not os.environ.get("GOOGLE_API_KEY"):
+        return {
+            "ok": False,
+            "route": agent_id or "unknown",
+            "error_type": "missing_key",
+            "answer": "To ask questions and retrieve source evidence with this agent, please configure your Google Gemini API key.",
+            "evidence": [],
+            "tool_calls": [],
+            "follow_ups": [],
+        }
+
+    agent_id_map = {
+        "orby": "research",
+        "biblio": "books",
+        "cosmo": "space",
+        "atlas": "wikidata",
+        "breeze": "air_quality",
+        "palette": "met_museum",
+    }
+
+    route = agent_id_map.get(agent_id, agent_id) if agent_id else route_query(query)
 
     if route == "books":
         agent = create_books_agent()
@@ -221,16 +361,49 @@ def run_agent_query(query: str) -> dict:
             "answer": "No agent is configured for this category yet.",
             "evidence": [],
             "tool_calls": [],
+            "follow_ups": [],
         }
 
     try:
-        return _run_agent(agent, query, route)
+        return _run_agent(agent, query, route, history=history, agent_key=agent_id or route)
     except Exception as exc:
-        # Keep provider/model errors visible to the caller.
-        return {
-            "ok": False,
-            "route": route,
-            "answer": f"The {route} agent failed: {type(exc).__name__}: {exc}",
-            "evidence": [],
-            "tool_calls": [],
-        }
+        exc_str = str(exc).lower()
+        if (
+            "429" in exc_str
+            or "resource_exhausted" in exc_str
+            or "quota" in exc_str
+        ):
+            return {
+                "ok": False,
+                "route": route,
+                "error_type": "quota_exceeded",
+                "answer": "Your Gemini API quota limit has been reached for this minute/day. Please check your Google AI Studio plan or retry in a few moments.",
+                "evidence": [],
+                "tool_calls": [],
+                "follow_ups": [],
+            }
+        elif (
+            "400" in exc_str
+            or "403" in exc_str
+            or "api_key_invalid" in exc_str
+            or "invalid api key" in exc_str
+        ):
+            return {
+                "ok": False,
+                "route": route,
+                "error_type": "invalid_key",
+                "answer": "The provided Gemini API key was rejected by Google. Please check your API key and update it in the settings.",
+                "evidence": [],
+                "tool_calls": [],
+                "follow_ups": [],
+            }
+        else:
+            return {
+                "ok": False,
+                "route": route,
+                "error_type": "service_error",
+                "answer": "We were unable to complete this query due to a temporary service issue. Please try again or rephrase your question.",
+                "evidence": [],
+                "tool_calls": [],
+                "follow_ups": [],
+            }
