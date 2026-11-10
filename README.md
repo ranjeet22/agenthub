@@ -5,7 +5,12 @@
 </strong></p>
 </div>
 
+<div align="center">
+  
 ![AgentHub landing page](public/assets/hero.png)
+
+</div>
+
 <div align="center">
   
 ![Status](https://img.shields.io/badge/Status-In%20Development-orange?style=for-the-badge)
