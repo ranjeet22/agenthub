@@ -188,5 +188,5 @@ flowchart TD
 
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="https://www.gitskins.com/api/section/mag-cover?username=ranjeet22&avatar=https%3A%2F%2Favatars.githubusercontent.com%2Fu%2F68098838%3Fu%3D80008dd034609f3b0b8c79b4f3267cc6f7e3a8f5%26v%3D4&mode=light" />
-  <img src="https://www.gitskins.com/api/section/mag-cover?username=ranjeet22&avatar=https%3A%2F%2Favatars.githubusercontent.com%2Fu%2F68098838%3Fu%3D80008dd034609f3b0b8c79b4f3267cc6f7e3a8f5%26v%3D4&mode=dark" width="100%" alt="Ranjeet Singh: 365 Days of Coding⏳" />
+  <img src="https://www.gitskins.com/api/section/mag-cover?username=ranjeet22&avatar=https%3A%2F%2Favatars.githubusercontent.com%2Fu%2F68098838%3Fu%3D80008dd034609f3b0b8c79b4f3267cc6f7e3a8f5%26v%3D4&mode=dark&v=2026-11-11&pv=UewWwWgSNM7DFstT" width="100%" alt="Ranjeet Singh: 365 Days of Coding⏳" />
 </picture>
