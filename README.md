@@ -6,7 +6,7 @@
 </div>
 
 <div align="center">
-  
+   
 ![AgentHub landing page](public/assets/hero.png)
 
 </div>
