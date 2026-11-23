@@ -4,7 +4,7 @@
   AgentHub is a hub of AI agents across domains like space exploration, academic research, air quality, and art. Each agent uses APIs such as NASA, OpenAlex, arXiv, Wikidata, and OpenAQ to retrieve relevant information and deliver source-backed answers. Users can also build custom agents tailored to their needs.
 </strong></p>
 </div>
-
+ 
 <div align="center">
    
 ![AgentHub landing page](public/assets/hero.png)
